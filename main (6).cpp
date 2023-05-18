@@ -1,85 +1,79 @@
 #include <iostream>
-#include <fstream>
 #include <string>
 #include <vector>
+#include <functional>
 
 using namespace std;
 
 const int ALPHABET_SIZE = 26;
 
 struct TrieNode {
-    TrieNode* children[ALPHABET_SIZE];
+    vector<TrieNode*> children;
     bool isEndOfWord;
+
+    TrieNode() : children(ALPHABET_SIZE, nullptr), isEndOfWord(false) {}
 };
 
-TrieNode* createNode() {
-    TrieNode* node = new TrieNode;
-    for (int i = 0; i < ALPHABET_SIZE; i++)
-        node->children[i] = NULL;
-    node->isEndOfWord = false;
-    return node;
-}
-
-void insert(TrieNode* root, string word) {
+void insert(TrieNode* root, const string& word) {
     TrieNode* node = root;
-    for (int i = 0; i < word.length(); i++) {
-        int index = word[i] - 'a';
-        if (!node->children[index])
-            node->children[index] = createNode();
+    for (char c : word) {
+        int index = c - 'a';
+        if (!node->children[index]) {
+            node->children[index] = new TrieNode();
+        }
         node = node->children[index];
     }
     node->isEndOfWord = true;
 }
 
-vector<string> findWords(TrieNode* root, string prefix) {
-    vector<string> words;
-
+void findAutocomplete(TrieNode* root, const string& prefix, vector<string>& result) {
     TrieNode* node = root;
-    for (int i = 0; i < prefix.length(); i++) {
-        int index = prefix[i] - 'a';
-        if (!node->children[index])
-            return words;
+    for (char c : prefix) {
+        int index = c - 'a';
+        if (!node->children[index]) {
+            return; // Префикс не найден в дереве
+        }
         node = node->children[index];
     }
 
-    if (node->isEndOfWord)
-        words.push_back(prefix);
-
-    for (int i = 0; i < ALPHABET_SIZE; i++) {
-        if (node->children[i]) {
-            vector<string> suffixes = findWords(node->children[i], prefix + char('a' + i));
-            words.insert(words.end(), suffixes.begin(), suffixes.end());
+    // Обход дочерних узлов и добавление слов в результат
+    function<void(TrieNode*, string)> traverse = [&](TrieNode* curNode, string curStr) {
+        if (curNode->isEndOfWord) {
+            result.push_back(prefix + curStr);
         }
-    }
+        for (int i = 0; i < ALPHABET_SIZE; i++) {
+            if (curNode->children[i]) {
+                traverse(curNode->children[i], curStr + char(i + 'a'));
+            }
+        }
+    };
 
-    return words;
+    traverse(node, "");
 }
 
 int main() {
-    // Читаем словарь из файла
-    ifstream file("dictionary.txt");
-    string word;
-    TrieNode* root = createNode();
-    while (file >> word)
+    // Построение Trie из словаря
+    vector<string> dictionary = {"apple", "application", "apartment", "baby", "backpack", "cat", "car", "card", "dog", "door"};
+    TrieNode* root = new TrieNode();
+    for (const auto& word : dictionary) {
         insert(root, word);
-    file.close();
+    }
 
-    // Запускаем бесконечный цикл чтения ввода от пользователя
+    // Цикл чтения строк и вывода автодополнений
     while (true) {
-        cout << "Введите слово (для выхода введите 'exit'): ";
-        string input;
-        cin >> input;
+        cout << "Введите часть слова для автодополнения: ";
+        string prefix;
+        getline(cin, prefix);
 
-        if (input == "exit")
-            break;
+        vector<string> result;
+        findAutocomplete(root, prefix, result);
 
-        vector<string> words = findWords(root, input);
-        if (words.empty())
-            cout << "Слово не найдено в словаре." << endl;
-        else {
-            cout << "Найдены следующие слова:" << endl;
-            for (string word : words)
+        if (result.empty()) {
+            cout << "Слова на префикс '" << prefix << "' не найдены." << endl;
+        } else {
+            for (const auto& word : result) {
                 cout << word << endl;
+            }
         }
     }
 
